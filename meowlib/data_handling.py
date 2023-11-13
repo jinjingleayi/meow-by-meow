@@ -1,5 +1,4 @@
 '''
-Authors: 
 '''
 from typing import Union, Tuple
 
@@ -14,7 +13,7 @@ from . import utils
 
 
 class WavLoader(TransformerMixin, BaseEstimator):
-    '''Converts filepaths to array, rate tuples.
+    '''Converts filepaths to audio sample, rate tuples.
     '''
 
     def fit(self, X, y=None):
@@ -28,7 +27,7 @@ class WavLoader(TransformerMixin, BaseEstimator):
         self,
         X: Union[list[str], pd.Series, np.ndarray],
     ) -> Tuple[np.ndarray, int]:
-        '''
+        '''The actual conversion.
 
         Parameters
         ----------
@@ -56,7 +55,7 @@ class WavLoader(TransformerMixin, BaseEstimator):
 
 
 class SpecgramTransformer(TransformerMixin, BaseEstimator):
-    '''Transform filepaths into a specgram.
+    '''Transform a list audio samples and rates into a list of specgrams.
     Original code from specgram_vectorization.ipynb (Jinjing Yi,
     Brady Ali Medina).
     '''
@@ -71,8 +70,8 @@ class SpecgramTransformer(TransformerMixin, BaseEstimator):
     def transform(
         self,
         X: Union[list[str], pd.Series, np.ndarray],
-    ) -> np.ndarray:
-        '''Transform a list-like of filepaths into an array of specgrams.
+    ) -> list[np.ndarray]:
+        '''Transform a list audio samples and rates into a list of specgrams.
 
         Parameters
         ----------
@@ -95,25 +94,43 @@ class SpecgramTransformer(TransformerMixin, BaseEstimator):
             mel_spec_db = librosa.amplitude_to_db(mel_scale_sgram, ref=np.min)
             arrs.append(mel_spec_db)
 
+        return arrs
+
+
+class PadTransformer(TransformerMixin, BaseEstimator):
+    '''Pads 2D arrays to the maximum dimensions of the fitted data.
+
+    Original code from specgram_vectorization.ipynb (Jinjing Yi,
+    Brady Ali Medina).
+    '''
+
+    def fit(self, X: list[np.ndarray], y=None):
+        '''Get max dimensions of fitted data.
+        '''
+
         # Get max dimensions
-        shapes0 = [_.shape[0] for _ in arrs]
-        max_shape0 = np.max(shapes0)
+        shapes0 = [_.shape[0] for _ in X]
+        self.max_shape0_ = np.max(shapes0)
         # This is a bit unnecessary because this dimension is the same
         # for all the data, just trying to be consistent
         # with the other dimension
-        shapes1 = [_.shape[1] for _ in arrs]
+        shapes1 = [_.shape[1] for _ in X]
         # Added one for this just to make sure all rows
         # are added 0 (just to make recover easier)
-        max_shape1 = np.max(shapes1) + 1
+        self.max_shape1_ = np.max(shapes1) + 1
+
+        return self
+
+    def transform(self, X: list[np.ndarray]) -> np.ndarray:
 
         # Pad arrays
         spec_data = []
-        for i in range(len(arrs)):
-            pad0 = max_shape0 - arrs[i].shape[0]
-            pad1 = max_shape1 - arrs[i].shape[1]
+        for i in range(len(X)):
+            pad0 = self.max_shape0_ - X[i].shape[0]
+            pad1 = self.max_shape1_ - X[i].shape[1]
             spec_data.append(
                 np.pad(
-                    arrs[i],
+                    X[i],
                     ((0, 0), (pad0, pad1)),
                     mode='constant',
                     constant_values=-1

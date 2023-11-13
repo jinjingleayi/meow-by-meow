@@ -1,16 +1,58 @@
 '''
 Authors: 
 '''
-from typing import Union
+from typing import Union, Tuple
 
 import librosa
 import numpy as np
 import pandas as pd
+from scipy.io import wavfile
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.utils.validation import check_is_fitted
 import tqdm
 
 from . import utils
+
+
+class WavLoader(TransformerMixin, BaseEstimator):
+    '''Converts filepaths to array, rate tuples.
+    '''
+
+    def fit(self, X, y=None):
+        '''The scikit-learn pipeline requires transformers to have a "fit"
+        method, but it can be empty.
+        '''
+
+        return self
+
+    def transform(
+        self,
+        X: Union[list[str], pd.Series, np.ndarray],
+    ) -> Tuple[np.ndarray, int]:
+        '''
+
+        Parameters
+        ----------
+        X :
+            The input filepaths.
+
+        Returns:
+        X_transformed :
+            (data, rate) for each file.
+        '''
+
+        # Check the input is good.
+        X = utils.check_filepaths_input(X)
+
+        X_transformed = []
+        for data_fp in tqdm.tqdm(X['filepath']):
+            rate, data = wavfile.read(data_fp)
+
+            # Convert to what librosa expects
+            data = data / np.iinfo(data.dtype).max
+
+            X_transformed.append((data, rate))
+
+        return X_transformed
 
 
 class SpecgramTransformer(TransformerMixin, BaseEstimator):
@@ -29,7 +71,6 @@ class SpecgramTransformer(TransformerMixin, BaseEstimator):
     def transform(
         self,
         X: Union[list[str], pd.Series, np.ndarray],
-        flatten: bool = False,
     ) -> np.ndarray:
         '''Transform a list-like of filepaths into an array of specgrams.
 
@@ -38,22 +79,15 @@ class SpecgramTransformer(TransformerMixin, BaseEstimator):
         X :
             The input filepaths.
 
-        flatten :
-            If True, return flattened images.
-
         Returns
         -------
         X_transformed :
-            The specgrams
+            The specgrams.
         '''
-
-        # Check the input is good.
-        X = utils.check_filepaths_input(X)
 
         # Specgrams
         arrs = []
-        for data_fp in tqdm.tqdm(X['filepath']):
-            datalib, ratelib = librosa.load(data_fp, sr=None)
+        for datalib, ratelib in tqdm.tqdm(X):
             specgram = librosa.stft(datalib)
             specmag, _ = librosa.magphase(specgram)
             mel_scale_sgram = librosa.feature.melspectrogram(

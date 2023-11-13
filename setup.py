@@ -5,7 +5,7 @@ Run with `pip install -e .`
 import setuptools
 
 setuptools.setup(
-    name="meow-by-meow",
+    name="meowlib",
     packages=setuptools.find_packages(),
     install_requires=[
         'numpy',

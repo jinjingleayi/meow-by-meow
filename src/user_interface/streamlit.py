@@ -1,4 +1,5 @@
 import io
+import requests
 
 import altair as alt
 import joblib
@@ -7,6 +8,7 @@ import numpy as np
 import pandas as pd
 from scipy.io import wavfile
 from sklearn.pipeline import Pipeline
+from skops.io import load
 import streamlit as st
 
 from meowlib import data_handling
@@ -14,9 +16,34 @@ from meowlib import data_handling
 
 st.title('Meow-by-Meow')
 
+from huggingface_hub import hf_hub_download
+
+# Define the model repository and the model filename
+repo_id = "zhafen/meow-by-meow-modeling"  # Replace with your repository ID
+filename = "k4s0.2r440.pkl"  # Replace with your model filename
+
+# Download the model file from the Hugging Face Hub
+model_file = hf_hub_download(repo_id=repo_id, filename=filename)
+
+# Load the model using joblib
+model = joblib.load(model_file)
+
 # Load the modeling pipeline
-model_filename = './data/trained_models/k5s0.2r440.pkl'
-model = joblib.load(model_filename)
+# model_filename = './data/trained_models/k4s0.2r440.pkl'
+# model_filename = '/Users/zhafen/data/meow-by-meow-modeling/knn.skops'
+# model = load(model_filename, trusted=True)
+
+# # URL to the raw model file on Hugging Face
+# model_url = 'https://huggingface.co/zhafen/meow-by-meow-modeling/raw/main/knn.skops'
+# 
+# 
+# response = requests.get(model_url)
+# model_file = io.BytesIO(response.content)
+# 
+# model = load(model_file, trusted=True)
+
+# Load the model
+# model = joblib.load(model_file)
 
 # Set up the padding, getting the pad size from the number of features
 freq_shape = 128
@@ -71,3 +98,11 @@ if wav_bytes is not None:
         "Your cat's meow is similar to that "
         f"of a cat that is {behaviors[classification[0]]}."
     )
+
+    # DEBUG
+    # import skops.hub_utils as hub_utils
+    # res = hub_utils.get_model_output("zhafen/meow-by-meow-modeling", X_transformed)
+    # st.write(
+    #     "Your cat's meow is similar to that "
+    #     f"of a cat that is {behaviors[res[0]]}."
+    # )

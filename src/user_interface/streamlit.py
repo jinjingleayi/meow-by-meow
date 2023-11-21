@@ -7,8 +7,10 @@ import pandas as pd
 from scipy.io import wavfile
 from sklearn.pipeline import Pipeline
 import streamlit as st
+import sys
 
-from meowlib import data_handling
+sys.path.append('./meowlib/')
+import data_handling
 
 
 st.title('Meow-by-Meow')

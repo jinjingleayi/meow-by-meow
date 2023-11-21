@@ -9,7 +9,7 @@ from scipy.io import wavfile
 from sklearn.base import BaseEstimator, TransformerMixin
 import tqdm
 
-from . import utils
+import utils
 
 
 class WavLoader(TransformerMixin, BaseEstimator):

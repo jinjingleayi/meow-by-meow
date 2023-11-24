@@ -28,7 +28,7 @@ settings = dict(
     model_filename='k4s0.2r440.pkl',
 
     # Data parameters
-    default_fp='./data/raw_data/zachs_cats/pip_and_chell_wet_food.wav',
+    default_fp='./data/processed_data/combined_meows.mp3',
 
     # Aesthetic parameters
     color_scheme='tableau10',
@@ -105,7 +105,7 @@ st.subheader('The recording to interpret')
 if user_file is None:
     st.write(
         "No recording handy? "
-        "We'll interpret the developers' cats instead!"
+        "We have one ready!"
     )
 
 st.write('Here is the audio we will interpret:')
@@ -195,7 +195,11 @@ with st.spinner('Visualizing...'):
             'behavior:N',
         ).scale(scheme=settings['color_scheme']),
     )
-    c = c.configure_axis(
+    c = c.configure_axisX(
+        # Remove gridlines
+        values=window_centers,
+    )
+    c = c.configure_axisY(
         # Remove gridlines
         grid=False
     )

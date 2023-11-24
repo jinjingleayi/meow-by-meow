@@ -25,7 +25,7 @@ settings = dict(
 
     # Define the model repository and the model filename
     repo_id='zhafen/meow-by-meow-modeling',
-    model_filename='k4s0.2r440.pkl',
+    model_filenames=['k4s0.2r440.pkl',],
 
     # Data parameters
     default_fp='./data/processed_data/combined_meows.mp3',
@@ -33,9 +33,18 @@ settings = dict(
     # Aesthetic parameters
     color_scheme='tableau10',
 )
-
 st.set_page_config(layout="wide")
 st.title('Meow-by-Meow')
+
+# Advanced settings
+st.sidebar.header('Advanced settings')
+technical = st.sidebar.checkbox('Display technical details')
+model_filename = st.sidebar.selectbox(
+    'Select the ML model to use',
+    options=settings['model_filenames'],
+)
+
+# Intro
 st.caption(
     'Created by Brady Ali, Jinjing Yi, Tantrik Mukerji, William Craig, '
     'and Zach Hafen-Saavedra '
@@ -45,6 +54,27 @@ st.write(
     "Use machine learning to interpret your cat's "
     "chirps, complaints, yowls, yells, vocalizations, and meows."
 )
+if technical:
+    st.markdown(
+        ':green[Highlighted contributions:]\n'
+        '  * :green[Brady Ali: spectrogram data analysis, '
+        'convolutional neural network (CNN) modeling]\n'
+        '  * :green[Jinjing Yi: data augmentation, spectrogram data analysis, '
+        'CNN modeling]\n'
+        '  * :green[Tantrik Mukerji: classification data handling, '
+        'CNN modeling]\n'
+        '  * :green[William Craig: K-nearest neighbors '
+        'modeling]\n'
+        '  * :green[Zach Hafen-Saavedra: user interface, project and code '
+        'management, asset management]\n'#', project prototype]\n'
+    )
+    st.markdown(
+        ':green[You can find the source code for meow-by-meow '
+        'on [github](https://github.com/jinjinglunayi/meow-by-meow). '
+        'This app is powered by [streamlit](https://streamlit.io/), '
+        'a convenient tool for buidling data-science dashboards.'
+        ']'
+    )
 st.divider()
 
 # Set up the padding, getting the pad size from the number of features
@@ -75,6 +105,16 @@ user_file = st.file_uploader(
         'Accepted formats include .wav, .m4a, and anything accepted by ffmpeg.'
     )
 )
+
+if technical:
+    st.markdown(
+        ':green[File loading is handled by pydub, '
+        'which can handle a wide variety of formats.]'
+    )
+    st.write(
+        f":green[Files cannot be shorter than {settings['min_duration_seconds']} "
+        'seconds, to ensure there is sufficient data to interpret.]'
+    )
 
 # Default case
 if user_file is None:
@@ -114,6 +154,14 @@ if user_file is None:
         "We have one ready!"
     )
 
+if technical:
+    st.markdown(
+        ':green[The default file is selected to show multiple '
+        'classifications. Currently it is frankensteined from several '
+        'training samples, but a longer-term solution is to use a '
+        'developer-uploaded recording that captures multiple scenarios.]'
+    )
+
 st.write('Here is the audio we will interpret:')
 st.write(audio)
 
@@ -121,13 +169,35 @@ st.divider()
 
 st.subheader('Our analysis')
 
-with st.status('Interpreting...', expanded=True):
+if technical:
+    st.markdown(
+        ':green[All our models are available online at'
+        '[the Hugging Face model hub]'
+        '(https://huggingface.co/zhafen/meow-by-meow). '
+        'When the streamlit app runs it retrieves the requested model from '
+        'Hugging Face.]'
+    )
+
+    st.markdown(
+        ':green[The status box lists each of the steps in the analysis.'
+        'The computations are fast enough that you may not actually see '
+        'the progress indicators.]'
+    )
+
+    st.markdown(
+        ':green[The ML models are trained on data of a length 4 seconds '
+        'or less. To feed in user data we create a rolling window '
+        'with a 4 second width, and roughly 1 second spacings '
+        'between windows.]'
+    )
+
+with st.status('Interpreting...', expanded=technical):
 
     st.write('Retrieving the trained AI model...')
     # Download the model file from the Hugging Face Hub
     model_file = hf_hub_download(
         repo_id=settings['repo_id'],
-        filename=settings['model_filename']
+        filename=model_filename,
     )
 
     # Load the model using joblib
@@ -164,7 +234,26 @@ with st.status('Interpreting...', expanded=True):
 
 st.divider()
 
-st.subheader('Your meow-by-meow interpretation!')
+st.subheader('Our interpretation!')
+
+if technical:
+    st.markdown(
+        ':green[The results are visualized using '
+        '[Vega-Altair](https://altair-viz.github.io/), '
+        'which is a Python API for Vega-Lite, which is built on Vega, '
+        'which draws on tools such as Prefuse, Protovis, and D3.js.]'
+    )
+
+    st.markdown(
+        ':green[We color the lines by the classification of the slice of '
+        'data with the window center nearest to that time.]'
+    )
+
+    st.markdown(
+        ':green[For short periods of time, we do not actually expect cats '
+        'to actually have wildly varying situations. However, we still '
+        'perform a meow-by-meow analysis to get a robust estimate.]'
+    )
 
 with st.spinner('Visualizing...'):
 

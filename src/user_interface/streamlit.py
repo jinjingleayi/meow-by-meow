@@ -15,6 +15,9 @@ import sys
 from torch import Tensor
 import torchaudio
 
+sys.path.append('./meowlib/')
+import data_handling
+
 # Set up settings
 settings = dict(
     # Parameters
@@ -30,9 +33,6 @@ settings = dict(
     default_fp='./data/raw_data/zachs_cats/pip_and_chell_wet_food.m4a',
 )
 
-sys.path.append('./meowlib/')
-import data_handling
-
 st.title('Meow-by-Meow')
 
 # Set up the padding, getting the pad size from the number of features
@@ -41,6 +41,9 @@ time_shape = 63
 pad_transformer = data_handling.PadTransformer()
 pad_transformer.max_shape0_ = freq_shape
 pad_transformer.max_shape1_ = time_shape
+
+# TODO: Do more preprocessing pre-specgram.
+# E.g. cut out leading silence, pad the end.
 
 # Preprocessing pipeline
 preprocess = Pipeline([

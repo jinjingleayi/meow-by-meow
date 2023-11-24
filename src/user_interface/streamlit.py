@@ -1,5 +1,3 @@
-import io
-
 import altair as alt
 from huggingface_hub import hf_hub_download
 import joblib
@@ -20,7 +18,7 @@ import data_handling
 
 # Set up settings
 settings = dict(
-    # Parameters
+    # Analysis parameters
     min_duration_seconds=4.,
     rate=8000,
     behaviors=['uncomfortable', 'hungry', 'comfortable'],
@@ -29,8 +27,11 @@ settings = dict(
     repo_id='zhafen/meow-by-meow-modeling',
     model_filename='k4s0.2r440.pkl',
 
-    # Default parameters
-    default_fp='./data/raw_data/zachs_cats/pip_and_chell_wet_food.m4a',
+    # Data parameters
+    default_fp='./data/raw_data/zachs_cats/pip_and_chell_wet_food.wav',
+
+    # Aesthetic parameters
+    color_scheme='tableau10',
 )
 
 st.title('Meow-by-Meow')
@@ -43,7 +44,8 @@ pad_transformer.max_shape0_ = freq_shape
 pad_transformer.max_shape1_ = time_shape
 
 # TODO: Do more preprocessing pre-specgram.
-# E.g. cut out leading silence, pad the end.
+# E.g. cut out leading silence, pad the end, resample.
+# The motivation is better consistency for specgrams.
 
 # Preprocessing pipeline
 preprocess = Pipeline([
@@ -143,12 +145,22 @@ with st.spinner(text="Interpreting your cat's meows..."):
     )
     interp_fn = interp1d(window_centers, classifications, kind='nearest')
     sample_df['classification'] = interp_fn(sample_df['time'])
+    sample_df['behavior'] = \
+        sample_df['classification'].map(pd.Series(settings['behaviors']))
 
     # Visualize
     c = alt.Chart(sample_df).mark_line().encode(
         x=alt.X('time', axis=alt.Axis(title='time (seconds)')),
         y=alt.Y('sample', axis=alt.Axis(title='amplitude')),
-        color='classification',
+        color=alt.Color(
+            'behavior:N',
+        ).scale(scheme=settings['color_scheme']),
+    )
+    c = c.configure_axis(
+        # Removing gridlines
+        grid=False
     )
     st.altair_chart(c, use_container_width=True)
-    # TODO: The colorbar automatically added to the right side is not wanted
+
+# TODO: An animated video that plays when it records would be neat.
+# TODO: Is "amplitude" intuitive enough for a y-axis label?

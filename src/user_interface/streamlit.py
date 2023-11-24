@@ -45,6 +45,7 @@ pad_transformer.max_shape1_ = time_shape
 # Preprocessing pipeline
 preprocess = Pipeline([
     ('specgram', data_handling.SpecgramTransformer()),
+    # TODO: Rolling Window Parameters are not in physical, intuitive units
     ('split', data_handling.RollingWindowSplitter()),
     ('pad', pad_transformer),
     ('flatten', data_handling.FlattenTransformer()),
@@ -61,6 +62,7 @@ if user_file is None:
 else:
     try:
         filetype = user_file.type.split('/')[-1]
+
         # Rename for functionality
         if filetype == 'x-m4a':
             filetype = 'm4a'
@@ -82,20 +84,24 @@ else:
 
 st.write(audio)
 
-# Extract the core data
-sample = np.array(audio.get_array_of_samples())
-sample = sample / np.iinfo(sample.dtype).max
-
-# Resample to the right rate
-resampler = torchaudio.transforms.Resample(audio.frame_rate, settings['rate'])
-sample = np.array(resampler(Tensor(sample)))
-rate = settings['rate']
-
-dt = 1. / settings['rate']
-sample_duration = sample.size * dt
-
-# Preprocess
 with st.spinner(text="Interpreting your cat's meows..."):
+
+    # Extract the core data
+    sample = np.array(audio.get_array_of_samples())
+    sample = sample / np.iinfo(sample.dtype).max
+
+    # Resample to the right rate
+    resampler = torchaudio.transforms.Resample(
+        audio.frame_rate,
+        settings['rate']
+    )
+    sample = np.array(resampler(Tensor(sample)))
+    rate = settings['rate']
+
+    dt = 1. / settings['rate']
+    sample_duration = sample.size * dt
+
+    # Preprocess
     X = [(sample, rate)]
     X_transformed = preprocess.fit_transform(X)
 
@@ -126,6 +132,7 @@ with st.spinner(text="Interpreting your cat's meows..."):
     })
 
     # Add the classifications
+    # TODO: The window centers aren't aligned exactly
     window_centers = np.linspace(
         0,
         sample_duration,
@@ -141,4 +148,4 @@ with st.spinner(text="Interpreting your cat's meows..."):
         color='classification',
     )
     st.altair_chart(c, use_container_width=True)
-
+    # TODO: The colorbar automatically added to the right side is not wanted

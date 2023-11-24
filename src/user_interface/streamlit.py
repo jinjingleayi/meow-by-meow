@@ -192,6 +192,9 @@ with st.spinner('Visualizing...'):
 
     # Visualize
     # TODO: Represent the fact that we have an averaging window somehow.
+    # TODO: Does it really make sense for sentiment to change from one meow
+    #       to the next? Probably not, but there can be multiple emotions
+    #       so maybe some shine through more-strongly?
     c = alt.Chart(sample_df).mark_line().encode(
         x=alt.X('time', axis=alt.Axis(title='time (seconds)')),
         y=alt.Y(

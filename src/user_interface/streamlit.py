@@ -35,6 +35,7 @@ settings = dict(
 )
 
 st.title('Meow-by-Meow')
+st.divider()
 
 # Set up the padding, getting the pad size from the number of features
 freq_shape = 128
@@ -87,6 +88,7 @@ else:
         st.error('Could not load user file. Using default file.')
         audio = AudioSegment.from_file(settings['default_fp'])
 
+st.write('Here is the audio we will interpret:')
 st.write(audio)
 
 with st.spinner(text="Interpreting your cat's meows..."):
@@ -151,13 +153,16 @@ with st.spinner(text="Interpreting your cat's meows..."):
     # Visualize
     c = alt.Chart(sample_df).mark_line().encode(
         x=alt.X('time', axis=alt.Axis(title='time (seconds)')),
-        y=alt.Y('sample', axis=alt.Axis(title='amplitude')),
+        y=alt.Y(
+            'sample',
+            axis=alt.Axis(title='amplitude', tickCount=0),
+        ),
         color=alt.Color(
             'behavior:N',
         ).scale(scheme=settings['color_scheme']),
     )
     c = c.configure_axis(
-        # Removing gridlines
+        # Remove gridlines
         grid=False
     )
     st.altair_chart(c, use_container_width=True)

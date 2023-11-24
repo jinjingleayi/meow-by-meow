@@ -34,7 +34,13 @@ settings = dict(
     color_scheme='tableau10',
 )
 
+st.set_page_config(layout="wide")
 st.title('Meow-by-Meow')
+st.caption(
+    'Created by Brady Ali, Jinjing Yi, Tantrik Mukerji, William Craig, '
+    'and Zach Hafen-Saavedra '
+    'during the Erdos Institute Fall 2023 Program.'
+)
 st.write(
     "Use machine learning to interpret your cat's "
     "chirps, complaints, yowls, yells, vocalizations, and meows."
@@ -185,18 +191,20 @@ with st.spinner('Visualizing...'):
         sample_df['classification'].map(pd.Series(settings['behaviors']))
 
     # Visualize
+    # TODO: Represent the fact that we have an averaging window somehow.
     c = alt.Chart(sample_df).mark_line().encode(
         x=alt.X('time', axis=alt.Axis(title='time (seconds)')),
         y=alt.Y(
             'sample',
             axis=alt.Axis(title='amplitude', tickCount=0),
         ),
+        # TODO: This creates independent lines. We don't want that.
         color=alt.Color(
             'behavior:N',
         ).scale(scheme=settings['color_scheme']),
     )
     c = c.configure_axisX(
-        # Remove gridlines
+        # Change gridline locations
         values=window_centers,
     )
     c = c.configure_axisY(

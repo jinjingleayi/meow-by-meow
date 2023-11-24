@@ -35,6 +35,10 @@ settings = dict(
 )
 
 st.title('Meow-by-Meow')
+st.write(
+    "Use machine learning to interpret your cat's "
+    "chirps, complaints, yowls, yells, vocalizations, and meows."
+)
 st.divider()
 
 # Set up the padding, getting the pad size from the number of features
@@ -50,16 +54,20 @@ pad_transformer.max_shape1_ = time_shape
 
 # Preprocessing pipeline
 preprocess = Pipeline([
-    ('specgram', data_handling.SpecgramTransformer()),
+    ('Building a specgram...', data_handling.SpecgramTransformer()),
     # TODO: Rolling Window Parameters are not in physical, intuitive units
-    ('split', data_handling.RollingWindowSplitter()),
-    ('pad', pad_transformer),
-    ('flatten', data_handling.FlattenTransformer()),
+    ('Splitting the recording into windows...',
+     data_handling.RollingWindowSplitter()),
+    ('Padding the data...', pad_transformer),
+    ('Flattening the data...', data_handling.FlattenTransformer()),
 ])
 
 # Read the user-provided .wav file data
+st.subheader('Upload a recording of your cat')
 user_file = st.file_uploader(
-    label=('Upload a recording of your cat. ')
+    label=(
+        'Accepted formats include .wav, .m4a, and anything accepted by ffmpeg.'
+    )
 )
 
 # Default case
@@ -87,17 +95,45 @@ else:
     except (AssertionError, CouldntDecodeError, IndexError) as e:
         st.error('Could not load user file. Using default file.')
         audio = AudioSegment.from_file(settings['default_fp'])
+        user_file = None
+
+st.divider()
+
+st.subheader('The recording to interpret')
+
+# Upload message
+if user_file is None:
+    st.write(
+        "No recording handy? "
+        "We'll interpret the developers' cats instead!"
+    )
 
 st.write('Here is the audio we will interpret:')
 st.write(audio)
 
-with st.spinner(text="Interpreting your cat's meows..."):
+st.divider()
 
+st.subheader('Our analysis')
+
+with st.status('Interpreting...', expanded=True):
+
+    st.write('Retrieving the trained AI model...')
+    # Download the model file from the Hugging Face Hub
+    model_file = hf_hub_download(
+        repo_id=settings['repo_id'],
+        filename=settings['model_filename']
+    )
+
+    # Load the model using joblib
+    model = joblib.load(model_file)
+
+    st.write('Formatting data...')
     # Extract the core data
     sample = np.array(audio.get_array_of_samples())
     sample = sample / np.iinfo(sample.dtype).max
 
     # Resample to the right rate
+    st.write('Resampling to a new frequency...')
     resampler = torchaudio.transforms.Resample(
         audio.frame_rate,
         settings['rate']
@@ -108,28 +144,26 @@ with st.spinner(text="Interpreting your cat's meows..."):
     dt = 1. / settings['rate']
     sample_duration = sample.size * dt
 
+    for key, item in preprocess.named_steps.items():
+        st.write(key)
+
     # Preprocess
     X = [(sample, rate)]
     X_transformed = preprocess.fit_transform(X)
 
-    # Download the model file from the Hugging Face Hub
-    model_file = hf_hub_download(
-        repo_id=settings['repo_id'],
-        filename=settings['model_filename']
-    )
-
-    # Load the model using joblib
-    model = joblib.load(model_file)
+    st.write('Employing the model...')
 
     # Predict
     classifications = model.predict(X_transformed)
 
+st.divider()
+
+st.subheader('Your meow-by-meow interpretation!')
+
+with st.spinner('Visualizing...'):
+
     # Get the typicall classification
     c_avg = np.argmax(np.bincount(classifications))
-
-    st.write(
-        f"Overall, your cat sounds {settings['behaviors'][c_avg]}."
-    )
 
     # Format the sample for visualization
     time = np.arange(0., sample_duration, dt)
@@ -167,5 +201,15 @@ with st.spinner(text="Interpreting your cat's meows..."):
     )
     st.altair_chart(c, use_container_width=True)
 
-# TODO: An animated video that plays when it records would be neat.
-# TODO: Is "amplitude" intuitive enough for a y-axis label?
+    # TODO: An animated video that plays when it records would be neat.
+    # TODO: Is "amplitude" intuitive enough for a y-axis label?
+
+    st.markdown(
+        (
+            "*<p style='text-align: center; font-size: larger'>"
+            "*Overall**, your cat sounds "
+            f"***{settings['behaviors'][c_avg]}***."
+            "</p>"
+        ),
+        unsafe_allow_html=True,
+    )

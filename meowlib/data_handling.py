@@ -5,11 +5,12 @@ from typing import Union, Tuple
 import librosa
 import numpy as np
 import pandas as pd
+from pydub import AudioSegment
 from scipy.io import wavfile
 from sklearn.base import BaseEstimator, TransformerMixin
 import tqdm
 
-from . import utils
+import utils
 
 
 class WavLoader(TransformerMixin, BaseEstimator):
@@ -54,11 +55,10 @@ class WavLoader(TransformerMixin, BaseEstimator):
         return X_transformed
 
 
-class SpecgramTransformer(TransformerMixin, BaseEstimator):
-    '''Transform a list audio samples and rates into a list of specgrams.
-    Original code from specgram_vectorization.ipynb (Jinjing Yi,
-    Brady Ali Medina).
-    '''
+class FFMPEGLoader(TransformerMixin, BaseEstimator):
+
+    def __init__(self, rate: int = 8000):
+        self.rate = rate
 
     def fit(self, X, y=None):
         '''The scikit-learn pipeline requires transformers to have a "fit"
@@ -70,6 +70,58 @@ class SpecgramTransformer(TransformerMixin, BaseEstimator):
     def transform(
         self,
         X: Union[list[str], pd.Series, np.ndarray],
+    ) -> Tuple[np.ndarray, int]:
+        '''The actual conversion.
+
+        Parameters
+        ----------
+        X :
+            The input filepaths.
+
+        Returns:
+        X_transformed :
+            (data, rate) for each file.
+        '''
+
+        # Check the input is good.
+        X = utils.check_filepaths_input(X)
+
+        X_transformed = []
+        for data_fp in tqdm.tqdm(X['filepath']):
+
+            # Load the data
+            audio = AudioSegment.from_file(data_fp)
+
+            # Convert to what librosa expects
+            data = np.array(audio.get_array_of_samples())
+            data = data / np.iinfo(data.dtype).max
+
+            X_transformed.append((data, audio.frame_rate))
+
+        return X_transformed
+
+
+class SpecgramTransformer(TransformerMixin, BaseEstimator):
+    '''Transform a list audio samples and rates into a list of specgrams.
+    Original code from specgram_vectorization.ipynb (Jinjing Yi,
+    Brady Ali Medina).
+    '''
+
+    def __init__(self, sample_rate: int = 8000, base_n_fft: int = 2048):
+
+        self.sample_rate = sample_rate
+        self.base_n_fft = base_n_fft
+
+    def fit(self, X, y=None):
+        '''The scikit-learn pipeline requires transformers to have a "fit"
+        method, but it can be empty.
+        '''
+
+        return self
+
+    def transform(
+        self,
+        X: Union[list, np.ndarray],
     ) -> list[np.ndarray]:
         '''Transform a list audio samples and rates into a list of specgrams.
 
@@ -87,7 +139,8 @@ class SpecgramTransformer(TransformerMixin, BaseEstimator):
         # Specgrams
         arrs = []
         for datalib, ratelib in tqdm.tqdm(X):
-            specgram = librosa.stft(datalib)
+            n_fft = int(self.base_n_fft * ratelib / self.sample_rate)
+            specgram = librosa.stft(datalib, n_fft=n_fft)
             specmag, _ = librosa.magphase(specgram)
             mel_scale_sgram = librosa.feature.melspectrogram(
                 S=specmag, sr=ratelib)
@@ -95,6 +148,73 @@ class SpecgramTransformer(TransformerMixin, BaseEstimator):
             arrs.append(mel_spec_db)
 
         return arrs
+
+
+class RollingWindowSplitter(TransformerMixin, BaseEstimator):
+
+    def __init__(
+        self,
+        window_size: int = 63,
+        window_spacing: int = 16,
+        concatenate: bool = True,
+    ):
+        self.window_size = window_size
+        self.window_spacing = window_spacing
+        self.concatenate = concatenate
+
+    def fit(self, X, y=None):
+        '''The scikit-learn pipeline requires transformers to have a "fit"
+        method, but it can be empty.
+        '''
+
+        assert self.window_size % 2 == 1, 'Window size must be odd.'
+        self.window_halfsize_ = (self.window_size - 1) // 2
+
+        return self
+
+    def transform(
+        self,
+        X: Union[list, np.ndarray],
+    ) -> list[np.ndarray]:
+        '''Transform a list audio samples and rates into a list of specgrams.
+
+        Parameters
+        ----------
+        X :
+            The input filepaths.
+
+        Returns
+        -------
+        X_transformed :
+            The specgrams.
+        '''
+
+        # Specgrams
+        split_specgrams = []
+        for full_specgram in X:
+
+            window_centers = np.arange(
+                self.window_halfsize_,
+                full_specgram.shape[1],
+                self.window_spacing,
+            )
+
+            specgrams = [
+                full_specgram[
+                    :,
+                    wc - self.window_halfsize_:wc + self.window_halfsize_ + 1
+                ]
+                for wc in window_centers
+            ]
+            split_specgrams.append(specgrams)
+
+        if self.concatenate:
+            if len(split_specgrams) == 1:
+                split_specgrams = split_specgrams[0]
+            else:
+                raise NotImplementedError('Concatenate does not work yet.')
+
+        return split_specgrams
 
 
 class PadTransformer(TransformerMixin, BaseEstimator):

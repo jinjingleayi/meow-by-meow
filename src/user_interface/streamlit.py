@@ -2,6 +2,7 @@ import altair as alt
 from huggingface_hub import hf_hub_download
 import joblib
 import numpy as np
+import os
 import pandas as pd
 from pydub import AudioSegment
 from pydub.exceptions import CouldntDecodeError
@@ -10,11 +11,40 @@ from scipy.io import wavfile
 from sklearn.pipeline import Pipeline
 import streamlit as st
 import sys
+from tensorflow import keras
 from torch import Tensor
 import torchaudio
 
 sys.path.append('./meowlib/')
 import data_handling
+
+# TODO: Do more preprocessing pre-specgram.
+# E.g. cut out leading silence, pad the end, resample.
+# The motivation is better consistency for specgrams.
+
+# Preprocessing will be some combination of these
+preprocessing_steps = {
+    'specgram': {
+        'description': 'Building specgrams...',
+        'transformer': data_handling.SpecgramTransformer(),
+    },
+    'window_split': {
+        'description': 'Splitting the recording into windows...',
+        'transformer': data_handling.RollingWindowSplitter(),
+    },
+    'pad_a': {
+        'description': 'Padding the data...',
+        'transformer': data_handling.PadTransformer((128, 63)),
+    },
+    'pad_b': {
+        'description': 'Padding the data...',
+        'transformer': data_handling.PadTransformer((128, 67)),
+    },
+    'flatten': {
+        'description': 'Flattening the data...',
+        'transformer': data_handling.FlattenTransformer(),
+    }
+}
 
 # Set up settings
 settings = dict(
@@ -24,8 +54,17 @@ settings = dict(
     behaviors=['uncomfortable', 'hungry', 'comfortable'],
 
     # Define the model repository and the model filename
-    repo_id='zhafen/meow-by-meow-modeling',
-    model_filenames=['k4s0.2r440.pkl',],
+    repo_id='zhafen/meow-by-meow',
+    models={
+        'CNN': {
+            'filename': 'CNN_dataaug_with_2freqtime1rand_masking_bgs.keras',
+            'preprocessing': ['specgram', 'window_split', 'pad_b'],
+        },
+        # 'KNN': {
+        #     'filename': 'CNN_dataaug_with_2freqtime1rand_masking_bgs.keras',
+        #     'preprocessing': ['specgram', 'window_split', 'pad_a', 'flatten'],
+        # },
+    },
 
     # Data parameters
     default_fp='./data/processed_data/combined_meows.mp3',
@@ -38,11 +77,13 @@ st.title('Meow-by-Meow')
 
 # Advanced settings
 st.sidebar.header('Advanced settings')
-technical = st.sidebar.checkbox('Display technical details')
-model_filename = st.sidebar.selectbox(
+technical = st.sidebar.checkbox('Display details')
+model_key = st.sidebar.selectbox(
     'Select the ML model to use',
-    options=settings['model_filenames'],
+    options=settings['models'].keys(),
+    format_func=lambda fn: fn.split('_')[0],
 )
+model_settings = settings['models'][model_key]
 
 # Intro
 st.caption(
@@ -77,26 +118,6 @@ if technical:
     )
 st.divider()
 
-# Set up the padding, getting the pad size from the number of features
-freq_shape = 128
-time_shape = 63
-pad_transformer = data_handling.PadTransformer()
-pad_transformer.max_shape0_ = freq_shape
-pad_transformer.max_shape1_ = time_shape
-
-# TODO: Do more preprocessing pre-specgram.
-# E.g. cut out leading silence, pad the end, resample.
-# The motivation is better consistency for specgrams.
-
-# Preprocessing pipeline
-preprocess = Pipeline([
-    ('Building a specgram...', data_handling.SpecgramTransformer()),
-    # TODO: Rolling Window Parameters are not in physical, intuitive units
-    ('Splitting the recording into windows...',
-     data_handling.RollingWindowSplitter()),
-    ('Padding the data...', pad_transformer),
-    ('Flattening the data...', data_handling.FlattenTransformer()),
-])
 
 # Read the user-provided .wav file data
 st.subheader('Upload a recording of your cat')
@@ -155,6 +176,7 @@ if user_file is None:
     )
 
 if technical:
+    # TODO: Either ensure the traning is working okay, or remove this.
     st.markdown(
         ':green[The default file is selected to show multiple '
         'classifications. Currently it is frankensteined from several '
@@ -171,7 +193,7 @@ st.subheader('Our analysis')
 
 if technical:
     st.markdown(
-        ':green[All our models are available online at'
+        ':green[All our models are available online at '
         '[the Hugging Face model hub]'
         '(https://huggingface.co/zhafen/meow-by-meow). '
         'When the streamlit app runs it retrieves the requested model from '
@@ -197,11 +219,24 @@ with st.status('Interpreting...', expanded=technical):
     # Download the model file from the Hugging Face Hub
     model_file = hf_hub_download(
         repo_id=settings['repo_id'],
-        filename=model_filename,
+        filename=model_settings['filename'],
     )
 
     # Load the model using joblib
-    model = joblib.load(model_file)
+    model_format = os.path.splitext(model_settings['filename'])[-1]
+    if model_format == '.pkl':
+        model = joblib.load(model_file)
+    elif model_format == '.keras':
+        # DEBUG
+        # model = keras.models.load_model(model_file)
+        model = keras.models.load_model(
+            '/Users/zhafensaavedra/data/meow-by-meow/CNN_dataaug_with_2freqtime1rand_masking_bgs.keras'
+        )
+    else:
+        raise ValueError(
+            f'Unrecognized model format, {model_format}. '
+            "Viable options are ['.pkl', '.keras']"
+        )
 
     st.write('Formatting data...')
     # Extract the core data
@@ -220,17 +255,57 @@ with st.status('Interpreting...', expanded=technical):
     dt = 1. / settings['rate']
     sample_duration = sample.size * dt
 
+    # The preprocessing
+    preprocess = Pipeline([
+        (
+            preprocessing_steps[key]['description'],
+            preprocessing_steps[key]['transformer']
+        )
+        for key in model_settings['preprocessing']
+    ])
     for key, item in preprocess.named_steps.items():
         st.write(key)
 
     # Preprocess
     X = [(sample, rate)]
     X_transformed = preprocess.fit_transform(X)
+    X_transformed = X_transformed.reshape(
+        X_transformed.shape[0],
+        X_transformed.shape[1],
+        X_transformed.shape[2],
+        1,
+    )
 
     st.write('Employing the model...')
 
     # Predict
     classifications = model.predict(X_transformed)
+    classifications = np.argmax(classifications, axis=1)
+
+# DEBUG
+label_mapping = [
+    (0, 'european_shorthair', 'brushing'),
+    (0, 'european_shorthair', 'food'),
+    (0, 'european_shorthair', 'isolation'),
+    (0, 'maine_coon', 'brushing'),
+    (0, 'maine_coon', 'food'),
+    (0, 'maine_coon', 'isolation'),
+    (1, 'european_shorthair', 'brushing'),
+    (1, 'european_shorthair', 'food'),
+    (1, 'european_shorthair', 'isolation'),
+    (1, 'maine_coon', 'brushing'),
+    (1, 'maine_coon', 'food'),
+    (1, 'maine_coon', 'isolation'),
+]
+behavior_mapping = {
+    'isolation': 0,
+    'food': 1,
+    'brushing': 2,
+}
+classifications = np.array([
+    behavior_mapping[label_mapping[_][-1]]
+    for _ in classifications
+])
 
 st.divider()
 

@@ -224,6 +224,10 @@ class PadTransformer(TransformerMixin, BaseEstimator):
     Brady Ali Medina).
     '''
 
+    def __init__(self, max_shape: Tuple[int] = None, force_shape: bool = True):
+        self.max_shape = max_shape
+        self.force_shape = force_shape
+
     def fit(self, X: list[np.ndarray], y=None):
         '''Get max dimensions of fitted data.
         '''
@@ -243,11 +247,18 @@ class PadTransformer(TransformerMixin, BaseEstimator):
 
     def transform(self, X: list[np.ndarray]) -> np.ndarray:
 
+        # If not fitted, fall back to defaults if provided.
+        if not self.force_shape:
+            max_shape0_ = self.max_shape0_
+            max_shape1_ = self.max_shape1_
+        else:
+            max_shape0_, max_shape1_ = self.max_shape
+
         # Pad arrays
         spec_data = []
         for i in range(len(X)):
-            pad0 = self.max_shape0_ - X[i].shape[0]
-            pad1 = self.max_shape1_ - X[i].shape[1]
+            pad0 = max_shape0_ - X[i].shape[0]
+            pad1 = max_shape1_ - X[i].shape[1]
             spec_data.append(
                 np.pad(
                     X[i],

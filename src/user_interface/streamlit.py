@@ -32,17 +32,13 @@ preprocessing_steps = {
         'description': 'Splitting the recording into windows...',
         'transformer': data_handling.RollingWindowSplitter(),
     },
-    'pad_a': {
+    'pad': {
         'description': 'Padding the data...',
         'transformer': data_handling.PadTransformer((128, 63)),
     },
-    'pad_b': {
-        'description': 'Padding the data...',
-        'transformer': data_handling.PadTransformer((128, 67)),
-    },
-    'flatten': {
-        'description': 'Flattening the data...',
-        'transformer': data_handling.FlattenTransformer(),
+    'reshape': {
+        'description': 'Reshaping the data...',
+        'transformer': data_handling.ReshapeTransformer(),
     }
 }
 
@@ -52,18 +48,27 @@ settings = dict(
     min_duration_seconds=4.,
     rate=8000,
     behaviors=['uncomfortable', 'hungry', 'comfortable'],
+    n_decibel_bins=128,
 
     # Define the model repository and the model filename
     repo_id='zhafen/meow-by-meow',
     models={
         'CNN': {
             'filename': 'CNN_dataaug_with_2freqtime1rand_masking_bgs.keras',
-            'preprocessing': ['specgram', 'window_split', 'pad_b'],
+            'preprocessing': ['specgram', 'window_split', 'pad', 'reshape'],
+            'classifications': ['sex', 'breed', 'situation']
         },
-        # 'KNN': {
-        #     'filename': 'CNN_dataaug_with_2freqtime1rand_masking_bgs.keras',
-        #     'preprocessing': ['specgram', 'window_split', 'pad_a', 'flatten'],
-        # },
+        'CNN: situation only': {
+            'filename': \
+                'CNN_dataaug_with_2freqtime1rand_masking_situation.keras',
+            'preprocessing': ['specgram', 'window_split', 'pad', 'reshape'],
+            'classifications': ['situation']
+        },
+        'KNN': {
+            'filename': 'situation_k3s0.2r440.pkl',
+            'preprocessing': ['specgram', 'window_split', 'pad', 'reshape'],
+            'classifications': ['sex', 'breed', 'situation']
+        },
     },
 
     # Data parameters
@@ -150,6 +155,8 @@ else:
 
         audio = AudioSegment.from_file(user_file, format=filetype)
 
+        # TODO: We should be able to upload shorter files, at least as short
+        #       as the shortest training sample.
         if audio.duration_seconds < settings['min_duration_seconds']:
             st.error(
                 'Please upload a recording longer than '
@@ -227,11 +234,7 @@ with st.status('Interpreting...', expanded=technical):
     if model_format == '.pkl':
         model = joblib.load(model_file)
     elif model_format == '.keras':
-        # DEBUG
-        # model = keras.models.load_model(model_file)
-        model = keras.models.load_model(
-            '/Users/zhafensaavedra/data/meow-by-meow/CNN_dataaug_with_2freqtime1rand_masking_bgs.keras'
-        )
+        model = keras.models.load_model(model_file)
     else:
         raise ValueError(
             f'Unrecognized model format, {model_format}. '
@@ -255,6 +258,26 @@ with st.status('Interpreting...', expanded=technical):
     dt = 1. / settings['rate']
     sample_duration = sample.size * dt
 
+    # Set up preprocessing parameters based on the model
+    if hasattr(model, 'inputs'):
+        input_shape = model.inputs[0].shape
+        assert input_shape[1] == settings['n_decibel_bins'], (
+            f"Expected the number of decibel bins to be "
+            f"{settings['n_decibel_bins']}. "
+            f"The model has {input_shape[1]}."
+        )
+        time_size = input_shape[2]
+        pad_shape = (settings['n_decibel_bins'], time_size)
+        X_shape = (-2, settings['n_decibel_bins'], time_size, 1)
+    elif hasattr(model, 'n_features_in_'):
+        time_size = model.n_features_in_ // settings['n_decibel_bins']
+        pad_shape = (settings['n_decibel_bins'], time_size)
+        X_shape = (-2, pad_shape[0] * pad_shape[1])
+    preprocessing_steps['window_split']['transformer'].set_params(
+        window_size=time_size)
+    preprocessing_steps['pad']['transformer'].set_params(shape=pad_shape)
+    preprocessing_steps['reshape']['transformer'].set_params(shape=X_shape)
+
     # The preprocessing
     preprocess = Pipeline([
         (
@@ -269,43 +292,58 @@ with st.status('Interpreting...', expanded=technical):
     # Preprocess
     X = [(sample, rate)]
     X_transformed = preprocess.fit_transform(X)
-    X_transformed = X_transformed.reshape(
-        X_transformed.shape[0],
-        X_transformed.shape[1],
-        X_transformed.shape[2],
-        1,
-    )
 
     st.write('Employing the model...')
 
     # Predict
     classifications = model.predict(X_transformed)
-    classifications = np.argmax(classifications, axis=1)
 
-# DEBUG
-label_mapping = [
-    (0, 'european_shorthair', 'brushing'),
-    (0, 'european_shorthair', 'food'),
-    (0, 'european_shorthair', 'isolation'),
-    (0, 'maine_coon', 'brushing'),
-    (0, 'maine_coon', 'food'),
-    (0, 'maine_coon', 'isolation'),
-    (1, 'european_shorthair', 'brushing'),
-    (1, 'european_shorthair', 'food'),
-    (1, 'european_shorthair', 'isolation'),
-    (1, 'maine_coon', 'brushing'),
-    (1, 'maine_coon', 'food'),
-    (1, 'maine_coon', 'isolation'),
-]
-behavior_mapping = {
-    'isolation': 0,
-    'food': 1,
-    'brushing': 2,
-}
-classifications = np.array([
-    behavior_mapping[label_mapping[_][-1]]
-    for _ in classifications
-])
+    st.write('Postprocessing...')
+
+    # Apply map if relevant
+    if len(classifications.shape) > 1:
+        # DEBUG
+        st.write(classifications)
+        classifications = np.argmax(classifications, axis=1)
+
+    behavior_mapping = {
+        'isolation': 0,
+        'food': 1,
+        'brushing': 2,
+    }
+    if model_settings['classifications'] == ['sex', 'breed', 'situation']:
+        label_mapping = [
+            (0, 'european_shorthair', 'brushing'),
+            (0, 'european_shorthair', 'food'),
+            (0, 'european_shorthair', 'isolation'),
+            (0, 'maine_coon', 'brushing'),
+            (0, 'maine_coon', 'food'),
+            (0, 'maine_coon', 'isolation'),
+            (1, 'european_shorthair', 'brushing'),
+            (1, 'european_shorthair', 'food'),
+            (1, 'european_shorthair', 'isolation'),
+            (1, 'maine_coon', 'brushing'),
+            (1, 'maine_coon', 'food'),
+            (1, 'maine_coon', 'isolation'),
+        ]
+        classifications = np.array([
+            behavior_mapping[label_mapping[_][-1]]
+            for _ in classifications
+        ])
+    elif model_settings['classifications'] == ['situation']:
+        label_mapping = ['brushing', 'food', 'isolation']
+        # DEBUG
+        st.write(classifications)
+        st.write(model.output)
+        classifications = np.array([
+            behavior_mapping[label_mapping[_]]
+            for _ in classifications
+        ])
+    else:
+        raise ValueError(
+            f"Unclear how to handle classifications = "
+            f"{model_settings['classifications']}"
+        )
 
 st.divider()
 

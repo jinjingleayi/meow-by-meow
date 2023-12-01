@@ -224,24 +224,26 @@ class PadTransformer(TransformerMixin, BaseEstimator):
     Brady Ali Medina).
     '''
 
-    def __init__(self, max_shape: Tuple[int] = None, force_shape: bool = True):
-        self.max_shape = max_shape
+    def __init__(self, shape: Tuple[int] = None, force_shape: bool = True):
+        self.shape = shape
         self.force_shape = force_shape
 
     def fit(self, X: list[np.ndarray], y=None):
         '''Get max dimensions of fitted data.
         '''
 
-        # Get max dimensions
-        shapes0 = [_.shape[0] for _ in X]
-        self.max_shape0_ = np.max(shapes0)
-        # This is a bit unnecessary because this dimension is the same
-        # for all the data, just trying to be consistent
-        # with the other dimension
-        shapes1 = [_.shape[1] for _ in X]
-        # Added one for this just to make sure all rows
-        # are added 0 (just to make recover easier)
-        self.max_shape1_ = np.max(shapes1) + 1
+        if not self.force_shape:
+
+            # Get max dimensions
+            shapes0 = [_.shape[0] for _ in X]
+            self.max_shape0_ = np.max(shapes0)
+            # This is a bit unnecessary because this dimension is the same
+            # for all the data, just trying to be consistent
+            # with the other dimension
+            shapes1 = [_.shape[1] for _ in X]
+            # Added one for this just to make sure all rows
+            # are added 0 (just to make recover easier)
+            self.max_shape1_ = np.max(shapes1) + 1
 
         return self
 
@@ -252,7 +254,7 @@ class PadTransformer(TransformerMixin, BaseEstimator):
             max_shape0_ = self.max_shape0_
             max_shape1_ = self.max_shape1_
         else:
-            max_shape0_, max_shape1_ = self.max_shape
+            max_shape0_, max_shape1_ = self.shape
 
         # Pad arrays
         spec_data = []
@@ -274,9 +276,13 @@ class PadTransformer(TransformerMixin, BaseEstimator):
         return spec_data
 
 
-class FlattenTransformer(TransformerMixin, BaseEstimator):
-    '''Flatten arrays.
+class ReshapeTransformer(TransformerMixin, BaseEstimator):
+    '''Reshape arrays for input
     '''
+
+    def __init__(self, shape: Tuple[int] = None):
+
+        self.shape = shape
 
     def fit(self, X: np.ndarray, y=None):
         '''The scikit-learn pipeline requires transformers to have a "fit"
@@ -287,6 +293,6 @@ class FlattenTransformer(TransformerMixin, BaseEstimator):
 
     def transform(self, X: np.ndarray):
 
-        X_transformed = X.reshape((X.shape[0], X.shape[1] * X.shape[2]))
+        X_transformed = X.reshape(self.shape)
 
         return X_transformed

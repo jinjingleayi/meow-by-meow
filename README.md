@@ -11,7 +11,12 @@ To access the app, data, or trained models use the links below.
 
 ## More Information
 
-This project was created by Brady Ali, William Craig, Zach Hafen-Saavedra, Tantrik Mukerji, and Jinjing Yi during the Fall 2023 Session of the Erdos Institute.
+This project was created during the Fall 2023 Session of the Erdos Institute by
+* [Brady Ali](https://www.linkedin.com/in/brady-ali-487864133/)
+* William Craig
+* [Tantrik Mukerji](https://www.linkedin.com/in/tantrik-mukerji-86b784143/)
+* [Zach Hafen-Saavedra](https://www.linkedin.com/in/zachary-hafen/)
+* [Jinjing Yi](https://www.linkedin.com/in/jinjing-luna-yi-a384b0235/)
 
 A presentation providing an overview is found here. (TBD)
 

@@ -302,8 +302,6 @@ with st.status('Interpreting...', expanded=technical):
 
     # Apply map if relevant
     if len(classifications.shape) > 1:
-        # DEBUG
-        st.write(classifications)
         classifications = np.argmax(classifications, axis=1)
 
     behavior_mapping = {
@@ -332,9 +330,6 @@ with st.status('Interpreting...', expanded=technical):
         ])
     elif model_settings['classifications'] == ['situation']:
         label_mapping = ['brushing', 'food', 'isolation']
-        # DEBUG
-        st.write(classifications)
-        st.write(model.output)
         classifications = np.array([
             behavior_mapping[label_mapping[_]]
             for _ in classifications

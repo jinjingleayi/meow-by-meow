@@ -1,8 +1,6 @@
 # Meow-by-Meow
 An app to understand why your cat is yelling at you.
 
-To access the app, data, or trained models use the links below.
-
 * [Online App](https://meow-by-meow.streamlit.app)
 
 * [Original Data](https://zenodo.org/records/4008297)

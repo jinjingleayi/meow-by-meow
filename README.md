@@ -13,12 +13,12 @@ To access the app, data, or trained models use the links below.
 
 This project was created during the Fall 2023 Session of the Erdos Institute by
 * [Brady Ali](https://www.linkedin.com/in/brady-ali-487864133/)
-* William Craig
+* [William Craig](https://wcraigkoln.wixsite.com/wcraig)
 * [Tantrik Mukerji](https://www.linkedin.com/in/tantrik-mukerji-86b784143/)
 * [Zach Hafen-Saavedra](https://www.linkedin.com/in/zachary-hafen/)
 * [Jinjing Yi](https://www.linkedin.com/in/jinjing-luna-yi-a384b0235/)
 
-A presentation providing an overview is found here. (TBD)
+[A presentation providing an overview is found here.](https://www.erdosinstitute.org/project-database/fall-2023/data-science-boot-camp/meow-by-meow)
 
 ## Repository Structure
 
